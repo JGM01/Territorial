@@ -69,7 +69,6 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     /// - Prevents world-scale polyfill attempt before initialization
     /// - MapKit fires regionDidChange during initial setup
     /// - We ignore updates until we've set a reasonable initial region
-    private var hasSetInitialRegion = false
     private var hasCenteredOnUser = false
     
     /// Timer for real-time updates during user interaction
@@ -99,15 +98,6 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         mapView.delegate = self
         view.addSubview(mapView)
-        
-        // Set a reasonable initial region to avoid world-scale polyfill
-        // This prevents the catastrophic memory allocation on first load
-        let initialRegion = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194), // San Francisco
-            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-        )
-        mapView.setRegion(initialRegion, animated: false)
-        hasSetInitialRegion = true
         
         // Add the hex overlay to the map
         mapView.addOverlay(overlay)
@@ -141,16 +131,22 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
             break
         }
     }
+    
+    private let desiredAccuracyMeters: Double = 50.0
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, !hasCenteredOnUser else { return }
-            
-            let region = MKCoordinateRegion(
-                center: location.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-            )
-            mapView.setRegion(region, animated: true)
-            hasCenteredOnUser = true
+        guard location.horizontalAccuracy >= 0,
+              location.horizontalAccuracy <= desiredAccuracyMeters else { return }
+        
+        let region = MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        mapView.setRegion(region, animated: false)
+        hasCenteredOnUser = true
+        locationManager.stopUpdatingLocation()
     }
+
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location error: \(error)")
@@ -207,17 +203,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     }
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-        // Clean up timer when interaction completes
-        // This fires once when the user stops panning/zooming
-        updateTimer?.invalidate()
-        updateTimer = nil
-        
-        // Only update grid after we've set initial region
-        // This prevents the world-scale polyfill attempt before initialization
-        guard hasSetInitialRegion else { return }
-        
-        // Do a final update with the completed region
-        // This ensures we have the most accurate grid for the final position
+        guard hasCenteredOnUser else { return }
         updateGrid()
     }
 
