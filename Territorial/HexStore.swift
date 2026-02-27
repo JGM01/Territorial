@@ -19,45 +19,50 @@ import UIKit
 /// - Lower resolution cells will aggregate from their constituent level 10 cells
 /// - Colors will sync from server state (owned/contested/unclaimed)
 /// - Residual strength could affect color intensity
-final class HexColorStore {
+final class HexStore {
     
     // MARK: - Storage
     
-    /// Sparse color storage: H3 cell ID → UIColor
+    /// Sparse color storage: H3 cell ID → HexStatus
     ///
     /// This is a simple in-memory dictionary for now. In production, this will:
     /// - Sync with server state
     /// - Persist to disk for offline viewing
-    private var colors: [UInt64: UIColor] = [:]
+    private var hexToStatusMap: [UInt64: HexStatus] = [:]
     private let queue = DispatchQueue(label: "com.territorial.hexColorStore", qos: .userInitiated)
     
-    // MARK: - System Color Palette
+    /// Demo pool of team statuses (excludes contested/unclaimed)
+    private static let demoTeamStatuses: [HexStatus] = [.red, .orange, .yellow, .green, .blue, .indigo, .purple]
     
-    /// Available system colors for demo purposes
-    ///
-    /// These are UIKit's semantic colors that adapt to light/dark mode automatically.
-    /// In production, these will be replaced by team colors from the game design:
-    /// - 7 team colors (one per team)
-    /// - Contested state color (likely gray or pulsing)
-    /// - Unclaimed state (transparent or very faint)
-    private static let systemColors: [UIColor] = [
-        .clear,
-        .systemRed,
-        .systemBlue,
-        .systemGreen,
-        .systemOrange,
-        .systemPurple,
-        .systemPink,
-        .systemTeal,
-        .systemIndigo,
-        .systemYellow,
-        .systemBrown,
-        .systemCyan,
-        .systemMint
+    static let teamToColor: [HexStatus: UIColor] = [
+        HexStatus.red: UIColor.red,
+        HexStatus.orange: UIColor.orange,
+        HexStatus.yellow: UIColor.yellow,
+        HexStatus.green: UIColor.green,
+        HexStatus.blue: UIColor.blue,
+        HexStatus.indigo: UIColor.systemIndigo,
+        HexStatus.purple: UIColor.purple,
+        HexStatus.unclaimed: UIColor.clear,
+        HexStatus.contested: UIColor.black
     ]
+
     
     // MARK: - Public Interface
     
+    /// Get status for a hexagon, assigning a random team if not yet set (demo)
+    /// - Parameter hexID: H3 cell ID (UInt64)
+    /// - Returns: HexStatus for this hexagon
+    func status(for hexID: UInt64) -> HexStatus {
+        queue.sync {
+            if let existing = hexToStatusMap[hexID] {
+                return existing
+            }
+            let newStatus = Self.demoTeamStatuses.randomElement() ?? .blue
+            hexToStatusMap[hexID] = newStatus
+            return newStatus
+        }
+    }
+
     /// Get color for a hexagon, assigning a random color if not yet set
     ///
     /// DEMO BEHAVIOR:
@@ -71,23 +76,11 @@ final class HexColorStore {
     /// - Parameter hexID: H3 cell ID (UInt64)
     /// - Returns: UIColor for this hexagon
     func color(for hexID: UInt64) -> UIColor {
-        queue.sync {
-            // If we already have a color, return it
-            if let existingColor = colors[hexID] {
-                return existingColor
-            }
-            
-            // DEMO: Assign random color
-            // PRODUCTION: This will be replaced by:
-            // 1. Fetch from server state if resolution 10
-            // 2. Aggregate from children if lower resolution
-            let newColor = Self.systemColors.randomElement() ?? .systemBlue
-            colors[hexID] = newColor
-            return newColor
-        }
+        let s = status(for: hexID)
+        return Self.teamToColor[s] ?? .clear
     }
     
-    /// Set color for a specific hexagon
+    /// Set status for a specific hexagon
     ///
     /// PRODUCTION USE:
     /// This will be called when:
@@ -96,11 +89,11 @@ final class HexColorStore {
     /// - Syncing initial map state
     ///
     /// - Parameters:
-    ///   - color: UIColor to assign
+    ///   - color: HexStatus to assign
     ///   - hexID: H3 cell ID (UInt64)
-    func setColor(_ color: UIColor, for hexID: UInt64) {
+    func setColor(_ color: HexStatus, for hexID: UInt64) {
         queue.async(flags: .barrier) {
-            self.colors[hexID] = color
+            self.hexToStatusMap[hexID] = color
         }
     }
     
@@ -118,7 +111,7 @@ final class HexColorStore {
     /// - Parameter hexID: H3 cell ID to remove
     func removeColor(for hexID: UInt64) {
         queue.async(flags: .barrier) {
-            self.colors.removeValue(forKey: hexID)
+            self.hexToStatusMap.removeValue(forKey: hexID)
         }
     }
     
@@ -130,10 +123,10 @@ final class HexColorStore {
     /// - Single queue transaction
     /// - Matches server's batch reducer output
     ///
-    /// - Parameter updates: Dictionary of hexID → UIColor changes
-    func updateColors(_ updates: [UInt64: UIColor]) {
+    /// - Parameter updates: Dictionary of hexID → HexStatus changes
+    func updateColors(_ updates: [UInt64: HexStatus]) {
         queue.async(flags: .barrier) {
-            self.colors.merge(updates) { _, new in new }
+            self.hexToStatusMap.merge(updates) { _, new in new }
         }
     }
     
@@ -142,14 +135,18 @@ final class HexColorStore {
     /// - Returns: Snapshot of current color state
     func allColors() -> [UInt64: UIColor] {
         queue.sync {
-            return colors
+            var mapped: [UInt64: UIColor] = [:]
+            for (key, status) in hexToStatusMap {
+                mapped[key] = Self.teamToColor[status] ?? .clear
+            }
+            return mapped
         }
     }
     
     /// Clear all colors (for reset/testing)
     func clear() {
         queue.async(flags: .barrier) {
-            self.colors.removeAll()
+            self.hexToStatusMap.removeAll()
         }
     }
     
@@ -186,22 +183,9 @@ final class HexColorStore {
     }
 }
 
-// MARK: - Future Team Color Mapping
-
-/// PLACEHOLDER: Team colors for production game
-///
-/// Per game design, there are 7 teams. This enum will map team IDs to colors.
-/// Colors should be:
-/// - Visually distinct
-/// - Colorblind-friendly
-/// - Work in both light and dark mode
-///
-/// Contested state needs a special color (neutral gray or pulsing effect)
-enum TeamColor {
-    // TODO: Define team color palette
-    // case team1, team2, team3, team4, team5, team6, team7
-    // case contested
-    // case unclaimed
-    
-    // var uiColor: UIColor { ... }
+/// There are 7 teams. This enum will map team IDs to colors.
+enum HexStatus {
+    case red, orange, yellow, green, blue, indigo, purple
+    case contested
+    case unclaimed
 }

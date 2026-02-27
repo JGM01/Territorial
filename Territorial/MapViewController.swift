@@ -563,6 +563,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     func presentHexDetail(for hexID: UInt64, isEligible: Bool) {
         let vc = HexDetailViewController()
         vc.hexID = hexID
+        vc.status = overlay.colorStore.status(for: hexID)
         vc.isEligible = isEligible
         vc.modalPresentationStyle = .custom
         vc.transitioningDelegate = self
@@ -590,3 +591,4 @@ extension MapViewController: UIGestureRecognizerDelegate {
         return true
     }
 }
+

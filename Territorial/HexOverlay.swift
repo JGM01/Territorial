@@ -29,7 +29,7 @@ final class HexOverlay: NSObject, MKOverlay {
     var boundingMapRect: MKMapRect
     
     /// Color storage for all hexagons
-    let colorStore = HexColorStore()
+    let colorStore = HexStore()
     
     private let boundaryQueue = DispatchQueue(
         label: "com.territorial.boundaries",
