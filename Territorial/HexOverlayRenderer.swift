@@ -95,7 +95,13 @@ final class HexOverlayRenderer: MKOverlayRenderer {
         // ─────────────────────────────────────────────────────────────────
         for (color, path) in fillPaths {
             context.addPath(path)
-            context.setFillColor(color.withAlphaComponent(0.35).cgColor)
+            
+            let alpha = if color == UIColor.clear {
+                0.0
+            } else {
+                0.25
+            }
+            context.setFillColor(color.withAlphaComponent(alpha).cgColor)
             context.fillPath()
         }
 

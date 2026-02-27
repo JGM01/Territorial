@@ -46,14 +46,11 @@ class HexPopoverPresentationController: UIPresentationController {
     private let backdropView = UIView()
     
     override var frameOfPresentedViewInContainerView: CGRect {
-        // total control — anchor near tap, center screen, whatever
-        guard let container = containerView else { return .zero }
-        return CGRect(x: 20, y: container.bounds.midY - 200,
-                      width: container.bounds.width - 40, height: 400)
+        containerView?.bounds ?? .zero
     }
     
     override func presentationTransitionWillBegin() {
-        backdropView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        backdropView.backgroundColor = UIColor.black.withAlphaComponent(0.1)
         backdropView.alpha = 0
         containerView?.insertSubview(backdropView, at: 0)
         backdropView.frame = containerView?.bounds ?? .zero
@@ -78,35 +75,35 @@ struct HexDetailView: View {
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { onDismiss() }
             VStack{
-                Text("Team Red")
-                    .font(.title.bold())
-                
-                Text(String(hexID, radix: 16, uppercase: true))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if isEligible {
-                    Button("Claim!") { }
-                        .buttonStyle(.borderedProminent)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text("Too far away to vote")
+                VStack {
+                    Text("Team Red")
+                        .font(.title.bold())
+                    
+                    Text(String(hexID, radix: 16, uppercase: true))
+                        .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    if isEligible {
+                        Button("Claim!") { }
+                            .buttonStyle(.borderedProminent)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Too far away to vote")
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .padding()
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-            }
+            .frame(height: 400)
+            .frame(maxWidth: .infinity)
+            .glassEffect(in: .rect(cornerRadius: 32))
             .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassEffect(in: .rect(cornerRadius: 32))
         
     }
 }

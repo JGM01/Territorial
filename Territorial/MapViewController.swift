@@ -95,6 +95,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         
         // Set up map view
         mapView.frame = view.bounds
+        mapView.pointOfInterestFilter = .excludingAll
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         mapView.delegate = self
         view.addSubview(mapView)

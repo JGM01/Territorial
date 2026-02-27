@@ -9,8 +9,20 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        HexMapView()
-            .ignoresSafeArea()
+        TabView {
+            Tab("Map", systemImage: "globe.americas.fill") {
+                HexMapView().ignoresSafeArea()
+            }
+            
+            Tab("Overview", systemImage: "newspaper.fill") {
+                EmptyView()
+            }
+            
+            Tab("Profile", systemImage: "person.fill") {
+                EmptyView()
+            }
+        }
+        
     }
 }
 

@@ -41,6 +41,7 @@ final class HexColorStore {
     /// - Contested state color (likely gray or pulsing)
     /// - Unclaimed state (transparent or very faint)
     private static let systemColors: [UIColor] = [
+        .clear,
         .systemRed,
         .systemBlue,
         .systemGreen,
