@@ -185,26 +185,18 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         }
         return MKOverlayRenderer(overlay: overlay)
     }
-    
-    func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
-        // Start continuous updates during user interaction
-        // This fires once when the user begins panning/zooming
-        
-        // Invalidate any existing timer to avoid duplicates
-        updateTimer?.invalidate()
-        
-        // Start polling for updates while user is interacting with the map
-        // We use a repeating timer instead of waiting for regionDidChange
-        // because regionDidChange only fires AFTER the gesture completes
-        updateTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.updateGrid()
-        }
-    }
 
+    private var pendingUpdate: DispatchWorkItem?
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         guard hasCenteredOnUser else { return }
-        updateGrid()
+        
+        pendingUpdate?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.updateGrid()
+        }
+        pendingUpdate = work
+        // Small delay coalesces rapid sequential fires
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
     }
 
     // MARK: - Grid Update Logic
