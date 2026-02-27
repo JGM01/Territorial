@@ -27,7 +27,7 @@ import CoreLocation
 /// 3. Renderer draws with that color
 ///
 /// In production, colors will come from server sync instead of random assignment.
-final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate {
+final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UIViewControllerTransitioningDelegate {
 
     // MARK: - Properties
     
@@ -154,19 +154,29 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     
     @objc func handleHexTap(_ gestureRecognizer: UITapGestureRecognizer) {
         let tapLocation = gestureRecognizer.location(in: mapView)
-        let tapLocationOnMap = MKMapPoint(
-            mapView.convert(tapLocation, toCoordinateFrom: mapView)
-        )
+        let coordinate = mapView.convert(tapLocation, toCoordinateFrom: mapView)
+        let latlng = H3LatLng(latitudeDegs: coordinate.latitude, longitudeDegs: coordinate.longitude)
         
-        let latlng = H3LatLng(
-            latitudeDegs: tapLocationOnMap.coordinate.latitude,
-            longitudeDegs: tapLocationOnMap.coordinate.longitude
-        )
-        let cell = try! latlng.cell(at: .res10)
+        guard let tappedCell = try? latlng.cell(at: .res10) else { return }
         
-        debugPrint(
-            "Tap: \(tapLocationOnMap), Cell: \(String(cell.id, radix: 16, uppercase: true))"
-        )
+        // Grab last-known location — valid since locationManager is running
+        let isEligible: Bool
+        if let userLocation = locationManager.location {
+            let userLatLng = H3LatLng(
+                latitudeDegs: userLocation.coordinate.latitude,
+                longitudeDegs: userLocation.coordinate.longitude
+            )
+            if let userCell = try? userLatLng.cell(at: .res10),
+               let neighbors = try? userCell.gridDisk(distance: 1) {
+                isEligible = neighbors.map(\.id).contains(tappedCell.id)
+            } else {
+                isEligible = false
+            }
+        } else {
+            isEligible = false
+        }
+        
+        presentHexDetail(for: tappedCell.id, isEligible: isEligible)
     }
     
     deinit {
@@ -547,6 +557,27 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         // DispatchQueue.main.async {
         //     self.renderer?.invalidatePath()
         // }
+    }
+    
+    func presentHexDetail(for hexID: UInt64, isEligible: Bool) {
+        let vc = HexDetailViewController()
+        vc.hexID = hexID
+        vc.isEligible = isEligible
+        vc.modalPresentationStyle = .custom
+        vc.transitioningDelegate = self
+        present(vc, animated: true)
+    }
+        
+    // UIViewControllerTransitioningDelegate
+    func presentationController(
+        forPresented presented: UIViewController,
+        presenting: UIViewController?,
+        source: UIViewController
+    ) -> UIPresentationController? {
+        HexPopoverPresentationController(
+            presentedViewController: presented,
+            presenting: presenting
+        )
     }
 }
 
